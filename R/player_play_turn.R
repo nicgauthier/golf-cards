@@ -1,5 +1,5 @@
 player_play_turn <- function(player, game_table) {
-  apply_strategy(player = player, game_table = game_table)
+  return(apply_strategy(player = player, game_table = game_table))
 }
 
 
@@ -18,49 +18,66 @@ apply_strategy.default_strat <- function(player, game_table) {
     }
   }
 
-  # check for completion of column
-  own_completion_ind <- check_own_col_completion(information = game_table$players[[player$id]]$information, discard = game_table$discard)
+  payoff <- calc_payoff(player = game_table$players[[player$id]], game_table = game_table)
 
-  # if completion possible
-  if (any(own_completion_ind)) {
-    card_to_switch <- which(is.na(game_table$players[[player$id]]$information[, which(own_completion_ind)[1]]))
-    game_table$players[[player$id]]$information[card_to_switch, which(own_completion_ind)[1]] <- game_table$discard
-    game_table$discard <- game_table$players[[player$id]]$cards[card_to_switch, which(own_completion_ind)[1]]
-    game_table$players[[player$id]]$cards[card_to_switch, which(own_completion_ind)[1]] <- game_table$players[[player$id]]$information[card_to_switch, which(own_completion_ind)[1]]
-    game_table$players[[player$id]]$completion[which(own_completion_ind)[1]] <- TRUE
-    game_table$players[[player$id]]$score[, which(own_completion_ind)[1]] <- 0
+  if (payoff$action == "discard") {
+    temp_card <- game_table$players[[player$id]]$cards[payoff$switch]
+    game_table$players[[player$id]]$cards[payoff$switch] <- game_table$discard
+    game_table$players[[player$id]]$information[payoff$switch] <- game_table$players[[player$id]]$cards[payoff$switch]
+    game_table$discard <- temp_card
+  } else if (payoff$action == "draw") {
+    game_table$discard <-  game_table$players[[player$id]]$cards[payoff$switch]
+    game_table$players[[player$id]]$cards[payoff$switch] <- game_table$deck[1, value]
+    game_table$players[[player$id]]$information[payoff$switch] <- game_table$players[[player$id]]$cards[payoff$switch]
+    game_table$deck <- game_table$deck[2:.N]
   } else {
-    if (game_table$discard > 5) {
-      # calc switch payoff
-      # check next player completion
-      # choose max payoff that don't give completion to other player
-    }
+    game_table$discard <- game_table$deck[1, value]
+    game_table$deck <- game_table$deck[2:.N]
+    card_to_flip <- which(is.na(game_table$players[[player$id]]$information))[1]
+    game_table$players[[player$id]]$information[card_to_flip] <- game_table$players[[player$id]]$cards[card_to_flip]
   }
 
-  #TODO if no completion if card higher than 5 pick card from deck
-  #TODO switch for max payoff without giving completion to next player
+  game_table$players[[player$id]]$score <- calc_score(information = game_table$players[[player$id]]$information, default = 5.37)
+
+  if (length(which(is.na(game_table$players[[player$id]]$information))) == 0) {
+    game_table$last_turn <- TRUE
+  }
+  return(game_table)
 }
 
-check_own_col_completion <- function(information, discard) {
-  apply(information, 2, function(x) {
-    if (sum(is.na(x)) == 1) {
-      return((sum(x, discard, na.rm = T)/3) == discard)
-    } else {
-      return(FALSE)
-    }
-  })
-}
 
 calc_payoff <- function(player, game_table) {
   UseMethod("calc_payoff")
 }
 
 calc_payoff.default_strat <- function(player, game_table) {
-  # calc switch payoff for completion
-  for (completion in player$completion) {
-    if (completion) {
 
-    }
+  player_score_discard_list <- list()
+  player_score_draw_list <- list()
+
+  current_score <- sum(player$score)
+
+  for (i in seq_along(player$information)) {
+    temp_information <- player$information
+    temp_information[i] <- game_table$discard
+    player_score_discard_list[[i]] <- calc_score(information = temp_information, default = 5.37)
+    temp_information[i] <- 5.37
+    player_score_draw_list[[i]] <- calc_score(information = temp_information, default = 5.37)
   }
-  # assign default value to unknown cards
+
+  best_discard <- which.min(sapply(player_score_discard_list, sum))
+  best_draw <- which.min(sapply(player_score_draw_list, sum))
+
+  if (current_score < best_discard & current_score < best_draw) {
+    return(list(action = "pass",
+           switch = NA))
+  }
+
+  if (best_discard <= best_draw) {
+    return(list(action = "discard",
+           switch = best_discard))
+  } else {
+    return(list(action = "draw",
+           switch = best_draw))
+  }
 }

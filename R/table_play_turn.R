@@ -10,6 +10,9 @@ table_play_turn <- function(game_table) {
     player_turn <- length(game_table$players)
   }
 
-  player_play_turn(player = game_table$players[[player_turn]], game_table = game_table)
+  game_table <- player_play_turn(player = game_table$players[[player_turn]], game_table = game_table)
 
+  game_table$turn <- game_table$turn + 1
+
+  return(game_table)
 }
