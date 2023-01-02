@@ -9,13 +9,16 @@ apply_strategy <- function(player, game_table) {
 
 apply_strategy.default_strat <- function(player, game_table) {
 
-  if (game_table$turn == 1) {
+  if (game_table$turn <= length(game_table$players)) {
     game_table$players[[player$id]]$information[1,1] <- game_table$players[[player$id]]$cards[1,1]
     if (game_table$players[[player$id]]$information[1,1] >= 13) {
       game_table$players[[player$id]]$information[1,2] <- game_table$players[[player$id]]$cards[1,2]
     } else {
       game_table$players[[player$id]]$information[2,1] <- game_table$players[[player$id]]$cards[2,1]
     }
+
+    game_table$players[[player$id]]$score <- calc_score(information = game_table$players[[player$id]]$information, default = 5.37)
+
   }
 
   payoff <- calc_payoff(player = game_table$players[[player$id]], game_table = game_table)
@@ -65,19 +68,34 @@ calc_payoff.default_strat <- function(player, game_table) {
     player_score_draw_list[[i]] <- calc_score(information = temp_information, default = 5.37)
   }
 
-  best_discard <- which.min(sapply(player_score_discard_list, sum))
-  best_draw <- which.min(sapply(player_score_draw_list, sum))
+  discard_score_tot <- sapply(player_score_discard_list, sum)
+  best_discard <- which.min(discard_score_tot)
 
-  if (current_score < best_discard & current_score < best_draw) {
-    return(list(action = "pass",
-           switch = NA))
-  }
+  draw_score_tot <- sapply(player_score_draw_list, sum)
+  best_draw <- which.min(draw_score_tot)
 
-  if (best_discard <= best_draw) {
+
+
+  if (discard_score_tot[best_discard] <= draw_score_tot[best_draw]) {
     return(list(action = "discard",
            switch = best_discard))
   } else {
-    return(list(action = "draw",
-           switch = best_draw))
+    player_score_draw_list <- list()
+    for (i in seq_along(player$information)) {
+      temp_information <- player$information
+      temp_information[i] <- game_table$deck[1, value]
+      player_score_draw_list[[i]] <- calc_score(information = temp_information, default = 5.37)
+    }
+    draw_score_tot <- sapply(player_score_draw_list, sum)
+    best_draw <- which.min(draw_score_tot)
+
+    if (draw_score_tot[best_draw] < current_score) {
+      return(list(action = "draw",
+                  switch = best_draw))
+    } else {
+      return(list(action = "pass",
+                  switch = NA))
+    }
+
   }
 }
